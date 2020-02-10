@@ -34,12 +34,14 @@ struct State {
     users: BTreeMap<u64, User>,
 }
 
+type ClientConnection = Pin<Box<Framed<TcpStream, EventCodec>>>;
+
 impl State {
     fn add_user(
         &mut self,
         session: Session,
         ip: std::net::SocketAddr,
-        mut network: Pin<Box<Framed<TcpStream, EventCodec>>>,
+        mut network: ClientConnection,
     ) -> u64 {
         self.counter += 1;
 
@@ -123,15 +125,11 @@ impl Session {
         }
     }
 
-    fn add_user(
-        &self,
-        ip: std::net::SocketAddr,
-        framed: Pin<Box<Framed<TcpStream, EventCodec>>>,
-    ) -> u64 {
+    fn add_user(&self, ip: std::net::SocketAddr, connection: ClientConnection) -> u64 {
         self.state
             .write()
             .unwrap()
-            .add_user(self.clone(), ip, framed)
+            .add_user(self.clone(), ip, connection)
     }
 
     fn get_name(&self, id: u64) -> String {
@@ -194,7 +192,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let session = session.clone();
         let codec = EventCodec;
-        let framed = Box::pin(codec.framed(socket));
-        session.add_user(ip, framed);
+        let connection = Box::pin(codec.framed(socket));
+        session.add_user(ip, connection);
     }
 }
